@@ -34,6 +34,7 @@ enum HTTPUploadStatus { UPLOAD_FILE_START, UPLOAD_FILE_WRITE, UPLOAD_FILE_END,
                         UPLOAD_FILE_ABORTED };
 enum HTTPClientStatus { HC_NONE, HC_WAIT_READ, HC_WAIT_CLOSE };
 enum HTTPAuthMethod { BASIC_AUTH, DIGEST_AUTH };
+enum ClientFuture { CLIENT_REQUEST_CAN_CONTINUE, CLIENT_REQUEST_IS_HANDLED, CLIENT_MUST_STOP, CLIENT_IS_GIVEN };
 
 #define HTTP_DOWNLOAD_UNIT_SIZE 1436
 
@@ -48,6 +49,8 @@ enum HTTPAuthMethod { BASIC_AUTH, DIGEST_AUTH };
 
 #define CONTENT_LENGTH_UNKNOWN ((size_t) -1)
 #define CONTENT_LENGTH_NOT_SET ((size_t) -2)
+
+#define WEBSERVER_HAS_HOOK 1
 
 class WebServer;
 
@@ -73,7 +76,8 @@ public:
   WebServer(IPAddress addr, int port = 80);
   WebServer(int port = 80);
   virtual ~WebServer();
-
+  typedef String (*ContentTypeFunction) (const String&);
+  using HookFunction = std::function<ClientFuture(const String& method, const String& url, WiFiClient* client, ContentTypeFunction contentType)>;
   virtual void begin();
   virtual void begin(uint16_t port);
   virtual void handleClient();
@@ -141,14 +145,26 @@ public:
     _streamFileCore(file.size(), file.name(), contentType);
     return _currentClient.write(file);
   }
-
+  void addHook (HookFunction hook) {
+    if (_hook) {
+      auto previousHook = _hook;
+      _hook = [previousHook, hook](const String& method, const String& url, WiFiClient* client, ContentTypeFunction contentType) {
+          auto whatNow = previousHook(method, url, client, contentType);
+          if (whatNow == CLIENT_REQUEST_CAN_CONTINUE)
+            return hook(method, url, client, contentType);
+          return whatNow;
+        };
+    } else {
+      _hook = hook;
+    }
+  }
 protected:
   virtual size_t _currentClientWrite(const char* b, size_t l) { return _currentClient.write( b, l ); }
   virtual size_t _currentClientWrite_P(PGM_P b, size_t l) { return _currentClient.write_P( b, l ); }
   void _addRequestHandler(RequestHandler* handler);
   void _handleRequest();
   void _finalizeResponse();
-  bool _parseRequest(WiFiClient& client);
+  ClientFuture  _parseRequest(WiFiClient& client);
   void _parseArguments(String data);
   static String _responseCodeToString(int code);
   bool _parseForm(WiFiClient& client, String boundary, uint32_t len);
@@ -159,7 +175,7 @@ protected:
   bool _collectHeader(const char* headerName, const char* headerValue);
 
   void _streamFileCore(const size_t fileSize, const String & fileName, const String & contentType);
-
+  
   String _getRandomHexString();
   // for extracting Auth parameters
   String _extractParam(String& authReq,const String& param,const char delimit = '"');
@@ -204,7 +220,7 @@ protected:
   String           _snonce;  // Store noance and opaque for future comparison
   String           _sopaque;
   String           _srealm;  // Store the Auth realm between Calls
-
+  HookFunction     _hook;
 };
 
 

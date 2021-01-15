@@ -63,7 +63,64 @@ void setup(void) {
   });
 
   server.onNotFound(handleNotFound);
+   /////////////////////////////////////////////////////////
+  // Hook examples
 
+  server.addHook([](const String & method, const String & url, WiFiClient * client, WebServer::ContentTypeFunction contentType) {
+    (void)method;      // GET, PUT, ...
+    (void)url;         // example: /root/myfile.html
+    (void)client;      // the webserver tcp client connection
+    (void)contentType; // contentType(".html") => "text/html"
+    Serial.printf("A useless web hook has passed\n");
+    return CLIENT_REQUEST_CAN_CONTINUE;
+  });
+
+  server.addHook([](const String&, const String & url, WiFiClient*, WebServer::ContentTypeFunction) {
+    if (url.startsWith("/fail")) {
+      Serial.printf("An always failing web hook has been triggered\n");
+      return CLIENT_MUST_STOP;
+    }
+    return CLIENT_REQUEST_CAN_CONTINUE;
+  });
+
+  server.addHook([](const String&, const String & url, WiFiClient * client, WebServer::ContentTypeFunction) {
+    if (url.startsWith("/dump")) {
+      Serial.printf("The dumper web hook is on the run\n");
+
+      // Here the request is not interpreted, so we cannot for sure
+      // swallow the exact amount matching the full request+content,
+      // hence the tcp connection cannot be handled anymore by the
+      // webserver.
+#ifdef STREAMTO_API
+      // we are lucky
+      client->toWithTimeout(Serial, 500);
+#else
+      auto last = millis();
+      while ((millis() - last) < 500) {
+        char buf[32];
+        size_t len = client->read((uint8_t*)buf, sizeof(buf));
+        if (len > 0) {
+          Serial.printf("(<%d> chars)", (int)len);
+          Serial.write(buf, len);
+          last = millis();
+        }
+      }
+#endif
+      // Two choices: return MUST STOP and webserver will close it
+      //                       (we already have the example with '/fail' hook)
+      // or                  IS GIVEN and webserver will forget it
+      // trying with IS GIVEN and storing it on a dumb WiFiClient.
+      // check the client connection: it should not immediately be closed
+      // (make another '/dump' one to close the first)
+      Serial.printf("\nTelling server to forget this connection\n");
+      static WiFiClient forgetme = *client; // stop previous one if present and transfer client refcounter
+      return CLIENT_IS_GIVEN;
+    }
+    return CLIENT_REQUEST_CAN_CONTINUE;
+  });
+
+  // Hook examples
+  /////////////////////////////////////////////////////////
   server.begin();
   Serial.println("HTTP server started");
 }

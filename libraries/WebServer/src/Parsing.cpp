@@ -65,13 +65,13 @@ static char* readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
   return buf;
 }
 
-bool WebServer::_parseRequest(WiFiClient& client) {
+ClientFuture WebServer::_parseRequest(WiFiClient& client) {
   // Read the first line of HTTP request
   String req = client.readStringUntil('\r');
   client.readStringUntil('\n');
   //reset header value
   for (int i = 0; i < _headerKeysCount; ++i) {
-    _currentHeaders[i].value =String();
+    _currentHeaders[i].value.clear();
    }
 
   // First line of HTTP request looks like "GET /path HTTP/1.1"
@@ -80,7 +80,7 @@ bool WebServer::_parseRequest(WiFiClient& client) {
   int addr_end = req.indexOf(' ', addr_start + 1);
   if (addr_start == -1 || addr_end == -1) {
     log_e("Invalid request: %s", req.c_str());
-    return false;
+    return CLIENT_MUST_STOP;
   }
 
   String methodStr = req.substring(0, addr_start);
@@ -95,7 +95,12 @@ bool WebServer::_parseRequest(WiFiClient& client) {
   }
   _currentUri = url;
   _chunked = false;
-
+  if (_hook)
+  {
+    auto whatNow = _hook(methodStr, url, &client, mime::getContentType);
+    if (whatNow != CLIENT_REQUEST_CAN_CONTINUE)
+        return whatNow;
+  }
   HTTPMethod method = HTTP_GET;
   if (methodStr == F("POST")) {
     method = HTTP_POST;
@@ -170,7 +175,7 @@ bool WebServer::_parseRequest(WiFiClient& client) {
       char* plainBuf = readBytesWithTimeout(client, contentLength, plainLength, HTTP_MAX_POST_WAIT);
       if (plainLength < contentLength) {
       	free(plainBuf);
-      	return false;
+      	 return CLIENT_MUST_STOP;
       }
       if (contentLength > 0) {
         if(isEncoded){
@@ -197,7 +202,7 @@ bool WebServer::_parseRequest(WiFiClient& client) {
     if (isForm){
       _parseArguments(searchStr);
       if (!_parseForm(client, boundaryStr, contentLength)) {
-        return false;
+         return CLIENT_MUST_STOP;
       }
     }
   } else {
@@ -230,7 +235,7 @@ bool WebServer::_parseRequest(WiFiClient& client) {
   log_v("Request: %s", url.c_str());
   log_v(" Arguments: %s", searchStr.c_str());
 
-  return true;
+  return CLIENT_REQUEST_CAN_CONTINUE;
 }
 
 bool WebServer::_collectHeader(const char* headerName, const char* headerValue) {

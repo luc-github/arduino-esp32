@@ -1,6 +1,6 @@
 #ifndef __MIMETABLE_H__
 #define __MIMETABLE_H__
-
+class String;
 
 namespace mime
 {
@@ -41,6 +41,7 @@ struct Entry
 
 
 extern const Entry mimeTable[maxType];
+String getContentType(const String& path);
 }
 
 
