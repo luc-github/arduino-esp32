@@ -34,7 +34,7 @@ enum HTTPUploadStatus { UPLOAD_FILE_START, UPLOAD_FILE_WRITE, UPLOAD_FILE_END,
                         UPLOAD_FILE_ABORTED };
 enum HTTPClientStatus { HC_NONE, HC_WAIT_READ, HC_WAIT_CLOSE };
 enum HTTPAuthMethod { BASIC_AUTH, DIGEST_AUTH };
-enum ClientFuture { CLIENT_REQUEST_CAN_CONTINUE, CLIENT_REQUEST_IS_HANDLED, CLIENT_MUST_STOP, CLIENT_IS_GIVEN };
+
 
 #define HTTP_DOWNLOAD_UNIT_SIZE 1436
 
@@ -76,6 +76,7 @@ public:
   WebServer(IPAddress addr, int port = 80);
   WebServer(int port = 80);
   virtual ~WebServer();
+  enum ClientFuture { CLIENT_REQUEST_CAN_CONTINUE, CLIENT_REQUEST_IS_HANDLED, CLIENT_MUST_STOP, CLIENT_IS_GIVEN };
   typedef String (*ContentTypeFunction) (const String&);
   using HookFunction = std::function<ClientFuture(const String& method, const String& url, WiFiClient* client, ContentTypeFunction contentType)>;
   virtual void begin();

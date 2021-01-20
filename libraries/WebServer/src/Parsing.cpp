@@ -65,7 +65,7 @@ static char* readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
   return buf;
 }
 
-ClientFuture WebServer::_parseRequest(WiFiClient& client) {
+ WebServer::ClientFuture WebServer::_parseRequest(WiFiClient& client) {
   // Read the first line of HTTP request
   String req = client.readStringUntil('\r');
   client.readStringUntil('\n');

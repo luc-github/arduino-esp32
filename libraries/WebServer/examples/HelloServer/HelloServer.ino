@@ -72,15 +72,15 @@ void setup(void) {
     (void)client;      // the webserver tcp client connection
     (void)contentType; // contentType(".html") => "text/html"
     Serial.printf("A useless web hook has passed\n");
-    return CLIENT_REQUEST_CAN_CONTINUE;
+    return WebServer::CLIENT_REQUEST_CAN_CONTINUE;
   });
 
   server.addHook([](const String&, const String & url, WiFiClient*, WebServer::ContentTypeFunction) {
     if (url.startsWith("/fail")) {
       Serial.printf("An always failing web hook has been triggered\n");
-      return CLIENT_MUST_STOP;
+      return WebServer::CLIENT_MUST_STOP;
     }
-    return CLIENT_REQUEST_CAN_CONTINUE;
+    return WebServer::CLIENT_REQUEST_CAN_CONTINUE;
   });
 
   server.addHook([](const String&, const String & url, WiFiClient * client, WebServer::ContentTypeFunction) {
@@ -114,9 +114,9 @@ void setup(void) {
       // (make another '/dump' one to close the first)
       Serial.printf("\nTelling server to forget this connection\n");
       static WiFiClient forgetme = *client; // stop previous one if present and transfer client refcounter
-      return CLIENT_IS_GIVEN;
+      return WebServer::CLIENT_IS_GIVEN;
     }
-    return CLIENT_REQUEST_CAN_CONTINUE;
+    return WebServer::CLIENT_REQUEST_CAN_CONTINUE;
   });
 
   // Hook examples
