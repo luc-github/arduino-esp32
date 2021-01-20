@@ -140,7 +140,14 @@ public:
   void sendContent_P(PGM_P content, size_t size);
 
   static String urlDecode(const String& text);
-
+   // Whether other requests should be accepted from the client on the
+  // same socket after a response is sent.
+  // This will automatically configure the "Connection" header of the response.
+  // Defaults to true when the client's HTTP version is 1.1 or above, otherwise it defaults to false.
+  // If the client sends the "Connection" header, the value given by the header is used.
+  void keepAlive(bool keepAlive) { _keepAlive = keepAlive; }
+  bool keepAlive() { return _keepAlive; }
+  
   template<typename T>
   size_t streamFile(T &file, const String& contentType) {
     _streamFileCore(file.size(), file.name(), contentType);
@@ -217,7 +224,8 @@ protected:
 
   String           _hostHeader;
   bool             _chunked;
-
+  bool             _keepAlive = false;
+  
   String           _snonce;  // Store noance and opaque for future comparison
   String           _sopaque;
   String           _srealm;  // Store the Auth realm between Calls

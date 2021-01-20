@@ -289,16 +289,24 @@ void WebServer::handleClient() {
     }
 
     log_v("New client");
-
+    
     _currentClient = client;
     _currentStatus = HC_WAIT_READ;
     _statusChange = millis();
   }
-
+  log_v("http-server loop: conn=%d avail=%d status=%s\n",
+    _currentClient.connected(), _currentClient.available(),
+    _currentStatus==HC_NONE?"none":
+    _currentStatus==HC_WAIT_READ?"wait-read":
+    _currentStatus==HC_WAIT_CLOSE?"wait-close":
+    "??");
   bool keepCurrentClient = false;
   bool callYield = false;
 
-  if (_currentClient.connected()) {
+   if (_currentClient.connected() || _currentClient.available()) {
+    if (_currentClient.available() && _keepAlive) {
+      _currentStatus = HC_WAIT_READ;
+    }
     switch (_currentStatus) {
     case HC_NONE:
       // No-op to avoid C++ compiler warning
@@ -356,6 +364,7 @@ void WebServer::handleClient() {
   }
 
   if (!keepCurrentClient) {
+    log_v("Drop client\n");
     _currentClient = WiFiClient();
     _currentStatus = HC_NONE;
     _currentUpload.reset();
@@ -432,7 +441,13 @@ void WebServer::_prepareHeader(String& response, int code, const char* content_t
     if (_corsEnabled) {
         sendHeader(String(FPSTR("Access-Control-Allow-Origin")), String("*"));
     }
-    sendHeader(String(F("Connection")), String(F("close")));
+    if (_keepAlive && _server.hasClient()) { // Disable keep alive if another client is waiting.
+      _keepAlive = false;
+    }
+    sendHeader(String(F("Connection")), String(_keepAlive ? F("keep-alive") : F("close")));
+    if (_keepAlive) {
+      sendHeader(String(F("Keep-Alive")), String(F("timeout=")) + HTTP_MAX_CLOSE_WAIT);
+    }
 
     response += _responseHeaders;
     response += "\r\n";
@@ -487,6 +502,7 @@ void WebServer::sendContent(const String& content) {
 }
 
 void WebServer::sendContent(const char* content, size_t contentLength) {
+  if (_currentMethod == HTTP_HEAD) return;
   const char * footer = "\r\n";
   if(_chunked) {
     char * chunkSize = (char *)malloc(11);

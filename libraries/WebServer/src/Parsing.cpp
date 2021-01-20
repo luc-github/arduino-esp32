@@ -73,7 +73,7 @@ static char* readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
   for (int i = 0; i < _headerKeysCount; ++i) {
     _currentHeaders[i].value.clear();
    }
-
+  log_v("Parsing \n %s", req.c_str());
   // First line of HTTP request looks like "GET /path HTTP/1.1"
   // Retrieve the "/path" part by finding the spaces
   int addr_start = req.indexOf(' ');
@@ -97,12 +97,18 @@ static char* readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
   _chunked = false;
   if (_hook)
   {
+    log_v("hook: method:%s  url:%s",methodStr.c_str(), url.c_str() );
     auto whatNow = _hook(methodStr, url, &client, mime::getContentType);
-    if (whatNow != CLIENT_REQUEST_CAN_CONTINUE)
+    if (whatNow != CLIENT_REQUEST_CAN_CONTINUE) {
+        log_v("not CLIENT_REQUEST_CAN_CONTINUE");
         return whatNow;
+    }
+        
   }
   HTTPMethod method = HTTP_GET;
-  if (methodStr == F("POST")) {
+   if (methodStr == F("HEAD")) {
+    method = HTTP_HEAD;
+  } else if (methodStr == F("POST")) {
     method = HTTP_POST;
   } else if (methodStr == F("DELETE")) {
     method = HTTP_DELETE;
@@ -115,7 +121,11 @@ static char* readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
   }
   _currentMethod = method;
 
-  log_v("method: %s url: %s search: %s", methodStr.c_str(), url.c_str(), searchStr.c_str());
+  _keepAlive = _currentVersion > 0; // Keep the connection alive by default
+                                    // if the protocol version is greater than HTTP 1.0
+
+  log_v("method: %s url: %s search: %s keepAlive=: %d\n",
+      methodStr.c_str(), url.c_str(), searchStr.c_str(), _keepAlive);
 
   //attach handler
   RequestHandler* handler;
@@ -167,6 +177,8 @@ static char* readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
         contentLength = headerValue.toInt();
       } else if (headerName.equalsIgnoreCase(F("Host"))){
         _hostHeader = headerValue;
+      } else if (headerName.equalsIgnoreCase(F("Connection"))){
+        _keepAlive = headerValue.equalsIgnoreCase(F("keep-alive"));
       }
     }
 
@@ -226,6 +238,8 @@ static char* readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
 
 	  if (headerName.equalsIgnoreCase("Host")){
         _hostHeader = headerValue;
+      } else if (headerName.equalsIgnoreCase(F("Connection"))){
+        _keepAlive = headerValue.equalsIgnoreCase(F("keep-alive"));
       }
     }
     _parseArguments(searchStr);
